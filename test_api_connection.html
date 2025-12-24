@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API连接测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-item {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        button {
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>API连接诊断工具</h1>
+    
+    <div class="test-item">
+        <h3>1. 测试服务器连接</h3>
+        <button onclick="testServer()">测试</button>
+        <div id="server-result"></div>
+    </div>
+    
+    <div class="test-item">
+        <h3>2. 测试登录接口</h3>
+        <input type="text" id="test-username" placeholder="用户名" value="admin">
+        <input type="password" id="test-password" placeholder="密码" value="admin123">
+        <button onclick="testLogin()">测试登录</button>
+        <div id="login-result"></div>
+    </div>
+    
+    <div class="test-item">
+        <h3>3. 测试预约接口</h3>
+        <button onclick="testReservation()">测试预约</button>
+        <div id="reservation-result"></div>
+    </div>
+    
+    <div class="test-item">
+        <h3>4. 检查控制台错误</h3>
+        <p>请按 F12 打开浏览器控制台，查看是否有错误信息</p>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+        
+        async function testServer() {
+            const result = document.getElementById('server-result');
+            result.innerHTML = '测试中...';
+            
+            try {
+                const response = await fetch('/');
+                if (response.ok) {
+                    result.innerHTML = '<span class="success">✓ 服务器连接正常</span>';
+                } else {
+                    result.innerHTML = '<span class="error">✗ 服务器响应异常：' + response.status + '</span>';
+                }
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ 无法连接到服务器：' + error.message + '</span>';
+                result.innerHTML += '<br><strong>可能的原因：</strong>';
+                result.innerHTML += '<br>1. 后端服务未启动（运行 python app.py）';
+                result.innerHTML += '<br>2. 端口被占用';
+                result.innerHTML += '<br>3. 防火墙阻止连接';
+            }
+        }
+        
+        async function testLogin() {
+            const result = document.getElementById('login-result');
+            const username = document.getElementById('test-username').value;
+            const password = document.getElementById('test-password').value;
+            
+            result.innerHTML = '测试中...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.innerHTML = '<span class="success">✓ 登录成功</span>';
+                } else {
+                    result.innerHTML = '<span class="error">✗ 登录失败：' + (data.error || '未知错误') + '</span>';
+                }
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ 网络错误：' + error.message + '</span>';
+            }
+        }
+        
+        async function testReservation() {
+            const result = document.getElementById('reservation-result');
+            result.innerHTML = '测试中...';
+            
+            try {
+                // 先检查登录状态
+                const meResponse = await fetch(`${API_BASE}/auth/me`, {
+                    credentials: 'include'
+                });
+                
+                if (!meResponse.ok) {
+                    result.innerHTML = '<span class="error">✗ 未登录，请先登录</span>';
+                    return;
+                }
+                
+                // 获取场馆列表
+                const venuesResponse = await fetch(`${API_BASE}/venues`, {
+                    credentials: 'include'
+                });
+                const venuesData = await venuesResponse.json();
+                
+                if (!venuesData.venues || venuesData.venues.length === 0) {
+                    result.innerHTML = '<span class="error">✗ 没有可用场馆</span>';
+                    return;
+                }
+                
+                const venue = venuesData.venues[0];
+                const today = new Date().toISOString().split('T')[0];
+                
+                // 测试创建预约
+                const response = await fetch(`${API_BASE}/reservations`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        venue_id: venue.id,
+                        date: today,
+                        start_time: '10:00:00',
+                        end_time: '11:00:00'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.innerHTML = '<span class="success">✓ 预约接口正常</span>';
+                } else {
+                    result.innerHTML = '<span class="error">✗ 预约失败：' + (data.error || '未知错误') + '</span>';
+                }
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ 网络错误：' + error.message + '</span>';
+                result.innerHTML += '<br><strong>详细错误：</strong>' + error.stack;
+            }
+        }
+    </script>
+</body>
+</html>
+
